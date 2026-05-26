@@ -13,3 +13,4 @@ reportlab
 PyPDF2
 pypdf
 google-genai
+gunicorn
