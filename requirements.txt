@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+python-multipart
+python-dotenv
+joblib
+numpy
+scikit-learn
+xgboost
+imbalanced-learn
+pandas
+matplotlib
+reportlab
+PyPDF2
+pypdf
+google-genai

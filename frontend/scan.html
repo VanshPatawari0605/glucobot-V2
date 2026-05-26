@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>GlucoBot — Risk Scan</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <style>
+    body {
+      background-color: #f8fafc;
+      background-image: radial-gradient(circle at 1px 1px, #cbd5e1 1px, transparent 0);
+      background-size: 28px 28px;
+    }
+    .navbar-brand .logo-icon {
+      background: #1d4ed8; color: white; font-size: 20px;
+      width: 38px; height: 38px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 8px rgba(29,78,216,0.3);
+    }
+
+    /* Gauge */
+    .gauge-container {
+      display: none;
+      flex-direction: column; align-items: center;
+      padding: 32px 0 16px;
+    }
+    .gauge-container.show { display: flex; }
+    #gaugeCanvas { width: 220px; height: 220px; }
+    .gauge-label {
+      margin-top: 8px; font-size: 12px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.1em; color: var(--gray-400);
+    }
+
+    /* Result block */
+    .result-block {
+      display: none; border-radius: 20px;
+      padding: 28px; text-align: center; margin-top: 24px;
+    }
+    .result-block.show { display: block; }
+    .result-block.low    { background: #f0fdf4; border: 1px solid #bbf7d0; }
+    .result-block.medium { background: #fefce8; border: 1px solid #fde68a; }
+    .result-block.high   { background: #fef2f2; border: 1px solid #fecaca; }
+    .result-pct {
+      font-family: var(--font-serif); font-size: 72px; line-height: 1;
+      margin-bottom: 6px;
+    }
+    .result-block.low    .result-pct { color: #16a34a; }
+    .result-block.medium .result-pct { color: #ca8a04; }
+    .result-block.high   .result-pct { color: #dc2626; }
+    .result-label {
+      font-size: 14px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.1em; opacity: 0.7; margin-bottom: 16px;
+    }
+    .result-desc { font-size: 14px; line-height: 1.7; max-width: 340px; margin: 0 auto 20px; }
+
+    /* Ref ranges tooltip */
+    .ref-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    .ref-table td {
+      padding: 7px 10px; font-size: 12px;
+      border-bottom: 1px solid var(--gray-100);
+    }
+    .ref-table tr:last-child td { border-bottom: none; }
+    .ref-table td:first-child { color: var(--gray-500); }
+    .ref-table td:last-child { color: var(--gray-700); font-weight: 500; text-align: right; }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <div class="logo-icon">🩺</div>
+      <span>GlucoBot</span>
+    </div>
+    <ul class="navbar-nav">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="scan.html" class="active">Risk Scan</a></li>
+      <li><a href="chat.html">AI Chat</a></li>
+    </ul>
+  </nav>
+
+  <div style="max-width:1000px; margin:0 auto; padding:48px 24px 80px;">
+
+    <div class="badge badge-blue mb-16">Evidence-Based Screening</div>
+    <h1 style="font-family:var(--font-serif); font-size:36px; color:var(--gray-900); margin-bottom:8px;">
+      Diabetes Risk Scan
+    </h1>
+    <p style="font-size:15px; color:var(--gray-500); margin-bottom:36px;">
+      Enter your health metrics below. All values can be found on a standard blood test report.
+    </p>
+
+    <div style="display:grid; grid-template-columns:1fr 380px; gap:28px; align-items:start;">
+
+      <!-- Left: Form -->
+      <div class="card">
+        <div id="formAlert" class="alert mb-16"></div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Glucose (mg/dL)</label>
+            <input type="number" id="glucose" class="form-input" placeholder="e.g. 120" min="0" max="300"/>
+            <div class="form-hint">Fasting blood glucose level</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Blood Pressure (mm Hg)</label>
+            <input type="number" id="bp" class="form-input" placeholder="e.g. 72" min="0" max="180"/>
+            <div class="form-hint">Diastolic blood pressure</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">BMI (kg/m²)</label>
+            <input type="number" id="bmi" class="form-input" placeholder="e.g. 28.5" step="0.1" min="0" max="70"/>
+            <div class="form-hint">Body Mass Index</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Insulin (uU/mL)</label>
+            <input type="number" id="insulin" class="form-input" placeholder="e.g. 80" min="0" max="900"/>
+            <div class="form-hint">2-hour serum insulin</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Age (years)</label>
+            <input type="number" id="age" class="form-input" placeholder="e.g. 35" min="1" max="120"/>
+            <div class="form-hint">Your current age</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Pregnancies</label>
+            <input type="number" id="pregnancies" class="form-input" placeholder="e.g. 0" min="0" max="20"/>
+            <div class="form-hint">Number of pregnancies (0 if male)</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Skin Thickness (mm)</label>
+            <input type="number" id="skin" class="form-input" placeholder="e.g. 20" min="0" max="100"/>
+            <div class="form-hint">Triceps skin fold thickness</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Diabetes Pedigree</label>
+            <input type="number" id="dpf" class="form-input" placeholder="e.g. 0.5" step="0.001" min="0" max="3"/>
+            <div class="form-hint">Family history score (0.0 – 2.5)</div>
+          </div>
+        </div>
+
+        <!-- Reference ranges toggle -->
+        <details style="margin-top:4px; margin-bottom:20px;">
+          <summary style="font-size:13px; color:var(--blue); cursor:pointer; font-weight:600;">
+            📋 View normal reference ranges
+          </summary>
+          <table class="ref-table">
+            <tr><td>Fasting Glucose</td><td>70 – 99 mg/dL</td></tr>
+            <tr><td>Blood Pressure (diastolic)</td><td>60 – 80 mm Hg</td></tr>
+            <tr><td>BMI</td><td>18.5 – 24.9 kg/m²</td></tr>
+            <tr><td>Insulin</td><td>16 – 166 uU/mL</td></tr>
+            <tr><td>Skin Thickness</td><td>10 – 40 mm</td></tr>
+            <tr><td>Diabetes Pedigree</td><td>0.0 – 0.5 (low family risk)</td></tr>
+          </table>
+        </details>
+        <!-- PDF Upload -->
+<div style="margin-bottom:20px; padding:16px; background:#f8fafc; border:1.5px dashed #cbd5e1; border-radius:14px;">
+  <div style="font-size:13px; font-weight:600; color:var(--gray-700); margin-bottom:8px;">📎 Auto-fill from Lab Report PDF</div>
+  <input type="file" id="pdfUpload" accept=".pdf" style="font-size:13px; color:var(--gray-600);" onchange="uploadPDF(this)"/>
+  <div id="pdfStatus" style="font-size:12px; margin-top:8px; color:var(--gray-400);"></div>
+</div>
+
+        <button id="scanBtn" class="btn btn-primary btn-full btn-lg" onclick="runScan()">
+          <span id="btnText">Analyse My Risk →</span>
+          <div id="btnSpinner" class="spinner" style="display:none;"></div>
+        </button>
+      </div>
+
+      <!-- Right: Result -->
+      <div>
+        <!-- Placeholder -->
+        <div id="resultPlaceholder" class="card" style="text-align:center; padding:48px 24px;">
+          <div style="font-size:48px; margin-bottom:16px;">🔬</div>
+          <div style="font-size:15px; font-weight:600; color:var(--gray-700); margin-bottom:8px;">
+            Your result will appear here
+          </div>
+          <div style="font-size:13px; color:var(--gray-400); line-height:1.6;">
+            Fill in your health metrics on the left and click Analyse My Risk
+          </div>
+        </div>
+
+        <!-- Gauge + result -->
+        <div id="gaugeWrap" class="card" style="display:none;">
+          <div class="gauge-container show">
+            <canvas id="gaugeCanvas" width="220" height="220"></canvas>
+            <div class="gauge-label" id="gaugeLabel">Analysing...</div>
+          </div>
+
+          <div id="resultBlock" class="result-block">
+            <div class="result-pct" id="resultPct">—</div>
+            <div class="result-label" id="resultLabel">—</div>
+            <div class="result-desc" id="resultDesc">—</div>
+            <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+              <a href="chat.html" class="btn btn-secondary">💬 Ask AI Assistant</a>
+              <button class="btn btn-primary" onclick="downloadReport()">📄 Download Report</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = "http://127.0.0.1:8000";
+    let lastResult = null;
+    let lastInputs = null;
+
+    // Prefill from PDF upload if available
+    window.addEventListener("load", () => {
+  const prefill = localStorage.getItem("glucobot_prefill");
+  if (prefill) {
+    const v = JSON.parse(prefill);
+    if (v.glucose)        document.getElementById("glucose").value     = v.glucose;
+    if (v.blood_pressure) document.getElementById("bp").value          = v.blood_pressure;
+    if (v.bmi)            document.getElementById("bmi").value         = v.bmi;
+    if (v.insulin)        document.getElementById("insulin").value     = v.insulin;
+    if (v.age)            document.getElementById("age").value         = v.age;
+    if (v.pregnancies)    document.getElementById("pregnancies").value = v.pregnancies;
+    if (v.skin_thickness) document.getElementById("skin").value        = v.skin_thickness;
+    if (v.dpf)            document.getElementById("dpf").value         = v.dpf;
+    localStorage.removeItem("glucobot_prefill");
+  }
+});
+
+async function uploadPDF(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const status = document.getElementById("pdfStatus");
+  status.style.color = "#94a3b8";
+  status.textContent = "Reading PDF...";
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const res  = await fetch(`${API}/parse-pdf`, { method: "POST", body: formData });
+    const data = await res.json();
+
+    if (!data.success) {
+      status.style.color = "#dc2626";
+      status.textContent = "❌ " + data.error;
+      return;
+    }
+
+    const v = data.values;
+    if (v.glucose)        document.getElementById("glucose").value     = v.glucose;
+    if (v.blood_pressure) document.getElementById("bp").value          = v.blood_pressure;
+    if (v.bmi)            document.getElementById("bmi").value         = v.bmi;
+    if (v.insulin)        document.getElementById("insulin").value     = v.insulin;
+    if (v.age)            document.getElementById("age").value         = v.age;
+    if (v.pregnancies)    document.getElementById("pregnancies").value = v.pregnancies;
+    if (v.skin_thickness) document.getElementById("skin").value        = v.skin_thickness;
+    if (v.dpf)            document.getElementById("dpf").value         = v.dpf;
+
+    const filled = Object.values(v).filter(x => x !== null).length;
+    status.style.color = "#16a34a";
+    status.textContent = `✅ ${filled}/8 fields filled from PDF`;
+  } catch {
+    status.style.color = "#dc2626";
+    status.textContent = "❌ Could not connect to backend.";
+  }
+}
+    function getInputs() {
+      return {
+        pregnancies:    parseFloat(document.getElementById("pregnancies").value) || 0,
+        glucose:        parseFloat(document.getElementById("glucose").value),
+        blood_pressure: parseFloat(document.getElementById("bp").value),
+        skin_thickness: parseFloat(document.getElementById("skin").value) || 0,
+        insulin:        parseFloat(document.getElementById("insulin").value) || 0,
+        bmi:            parseFloat(document.getElementById("bmi").value),
+        dpf:            parseFloat(document.getElementById("dpf").value) || 0.5,
+        age:            parseFloat(document.getElementById("age").value),
+      };
+    }
+
+    function validate(inputs) {
+      if (!inputs.glucose || !inputs.blood_pressure || !inputs.bmi || !inputs.age) {
+        return "Please fill in at least Glucose, Blood Pressure, BMI and Age.";
+      }
+      if (inputs.glucose < 50 || inputs.glucose > 300) return "Glucose value seems out of range (50–300).";
+      if (inputs.bmi < 10 || inputs.bmi > 70)          return "BMI value seems out of range (10–70).";
+      if (inputs.age < 1 || inputs.age > 120)           return "Age value seems out of range.";
+      return null;
+    }
+
+    function drawGauge(pct, color) {
+      const canvas = document.getElementById("gaugeCanvas");
+      const ctx    = canvas.getContext("2d");
+      const cx = 110, cy = 110, r = 88;
+      ctx.clearRect(0, 0, 220, 220);
+
+      // Track
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, Math.PI, 2 * Math.PI);
+      ctx.strokeStyle = "#f1f5f9";
+      ctx.lineWidth = 18;
+      ctx.lineCap = "round";
+      ctx.stroke();
+
+      // Fill
+      const angle = Math.PI + (pct / 100) * Math.PI;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, Math.PI, angle);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 18;
+      ctx.lineCap = "round";
+      ctx.stroke();
+
+      // Center text
+      ctx.fillStyle = color;
+      ctx.font = "bold 32px 'DM Serif Display', serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(pct.toFixed(1) + "%", cx, cy - 10);
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "500 12px 'DM Sans', sans-serif";
+      ctx.fillText("RISK SCORE", cx, cy + 22);
+    }
+
+    async function runScan() {
+      const inputs = getInputs();
+      const err    = validate(inputs);
+      const alertEl = document.getElementById("formAlert");
+
+      if (err) {
+        alertEl.className = "alert alert-warning show mb-16";
+        alertEl.textContent = "⚠️ " + err;
+        return;
+      }
+      alertEl.className = "alert mb-16";
+
+      // Show loading
+      document.getElementById("scanBtn").disabled = true;
+      document.getElementById("btnText").textContent = "Analysing...";
+      document.getElementById("btnSpinner").style.display = "inline-block";
+      document.getElementById("resultPlaceholder").style.display = "none";
+      document.getElementById("gaugeWrap").style.display = "block";
+      document.getElementById("resultBlock").className = "result-block";
+      document.getElementById("gaugeLabel").textContent = "Analysing...";
+      drawGauge(0, "#e2e8f0");
+
+      try {
+        const res  = await fetch(`${API}/predict`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(inputs)
+        });
+        const data = await res.json();
+
+        lastResult = data;
+        lastInputs = inputs;
+
+        // Animate gauge
+        const colors = { "LOW RISK": "#16a34a", "MODERATE RISK": "#ca8a04", "HIGH RISK": "#dc2626" };
+        const color  = colors[data.label];
+        let current  = 0;
+        const target = data.percentage;
+        const step   = target / 60;
+        const timer  = setInterval(() => {
+          current = Math.min(current + step, target);
+          drawGauge(current, color);
+          if (current >= target) {
+            clearInterval(timer);
+            showResult(data, color);
+          }
+        }, 16);
+
+      } catch {
+        alertEl.className = "alert alert-danger show mb-16";
+        alertEl.textContent = "❌ Could not connect to backend. Make sure FastAPI is running.";
+        document.getElementById("resultPlaceholder").style.display = "block";
+        document.getElementById("gaugeWrap").style.display = "none";
+      } finally {
+        document.getElementById("scanBtn").disabled = false;
+        document.getElementById("btnText").textContent = "Analyse My Risk →";
+        document.getElementById("btnSpinner").style.display = "none";
+      }
+    }
+
+    function showResult(data, color) {
+      const descs = {
+        "LOW RISK":      "Your indicators suggest a low likelihood of diabetes. Keep up the healthy habits and schedule a check-up yearly.",
+        "MODERATE RISK": "Some indicators are elevated. Lifestyle changes now can significantly reduce your risk. Consider seeing a doctor.",
+        "HIGH RISK":     "Several indicators are in the high-risk range. Please consult a healthcare provider as soon as possible.",
+      };
+      const classes = { "LOW RISK": "low", "MODERATE RISK": "medium", "HIGH RISK": "high" };
+
+      document.getElementById("gaugeLabel").textContent = data.label;
+      document.getElementById("resultPct").textContent  = data.percentage.toFixed(1) + "%";
+      document.getElementById("resultLabel").textContent = data.label;
+      document.getElementById("resultDesc").textContent  = descs[data.label];
+
+      const block = document.getElementById("resultBlock");
+      block.className = `result-block show ${classes[data.label]}`;
+
+      // Save to session for report page
+      sessionStorage.setItem("glucobot_result", JSON.stringify({
+        inputs: lastInputs, probability: data.probability, label: data.label
+      }));
+    }
+
+    async function downloadReport() {
+      if (!lastResult) return;
+      try {
+        const res = await fetch(`${API}/report`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            inputs: lastInputs,
+            probability: lastResult.probability,
+            label: lastResult.label
+          })
+        });
+        const blob = await res.blob();
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement("a");
+        a.href = url; a.download = "GlucoBot_Report.pdf";
+        a.click(); URL.revokeObjectURL(url);
+      } catch {
+        alert("Could not generate report. Make sure the backend is running.");
+      }
+    }
+  </script>
+
+</body>
+</html>
